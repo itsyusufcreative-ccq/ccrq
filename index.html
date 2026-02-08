@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness Card App</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        input, button, select { padding: 5px; margin: 5px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        td, th { border: 1px solid #ccc; padding: 5px; text-align: center; }
+        .completed { background-color: #fdd; }
+        label { display: block; margin-bottom: 5px; }
+        @media (max-width: 600px) {
+            table, th, td { font-size: 12px; }
+            button { font-size: 10px; padding: 3px; }
+        }
+    </style>
+</head>
+<body>
+    <h2>Fitness Card - 30 Points</h2>
+    <h3>Add Client</h3>
+    <label for="clientName">Client Name:</label>
+    <input type="text" id="clientName" placeholder="Client Name">
+    <label for="clientPhone">Phone Number:</label>
+    <input type="text" id="clientPhone" placeholder="Phone Number (10 digits)">
+    <button onclick="addClient()">Add Client</button>
+    <button onclick="exportCSV()">Export CSV</button>
+    <h3>Filter and Search Clients</h3>
+    <select id="filterSelect" onchange="renderClients()">
+        <option value="all">All</option>
+        <option value="active">Active (Points>0 & Days Remaining>0)</option>
+        <option value="expired">Expired (Points=0 or Days Remaining=0)</option>
+    </select>
+    <input type="text" id="searchInput" placeholder="Search by name or phone" onkeyup="renderClients()">
+    <h3>Clients</h3>
+    <table id="clientTable">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Points</th>
+                <th>Days Remaining</th>
+                <th>Attendance (Last 10)</th>
+                <th>Actions</th>
+                <th>Reminder</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <script>
+        let clients = [];
+        try {
+            clients = JSON.parse(localStorage.getItem('clients')) || [];
+        } catch (e) {
+            alert('Failed to load data. Starting fresh.');
+        }
+
+        function saveClients() {
+            try {
+                localStorage.setItem('clients', JSON.stringify(clients));
+            } catch (e) {
+                alert('Failed to save data. Check browser storage settings.');
+            }
+            renderClients();
+        }
+
+        function addClient() {
+            const name = document.getElementById('clientName').value.trim();
+            const phone = document.getElementById('clientPhone').value.trim();
+            const phoneRegex = /^\d{10}$/; // Adjust for your format, e.g., Moroccan: /^\+212\d{9}$/
+            if (!name || !phone) return alert('Enter name and phone');
+            if (!phoneRegex.test(phone)) return alert('Enter a valid 10-digit phone number');
+            if (clients.some(c => c.name.toLowerCase() === name.toLowerCase() || c.phone === phone)) return alert('Client with this name or phone already exists');
+            const startDate = new Date();
+            const expiryDate = new Date();
+            expiryDate.setDate(startDate.getDate() + 30);
+            clients.push({
+                name,
+                phone,
+                points: 30,
+                startDate: startDate.toISOString().split('T')[0],
+                expiryDate: expiryDate.toISOString().split('T')[0],
+                attendance: []
+            });
+            saveClients();
+            document.getElementById('clientName').value = '';
+            document.getElementById('clientPhone').value = '';
+        }
+
+        function checkIn(index) {
+            const client = clients[index];
+            const today = new Date().toISOString().split('T')[0];
+            if (client.points > 0 && !client.attendance.includes(today)) {
+                client.points -= 1;
+                client.attendance.push(today);
+                saveClients();
+                alert(`Checked in successfully! Points remaining: ${client.points}`);
+            } else if (client.attendance.includes(today)) {
+                alert('Client already checked in today');
+            } else {
+                alert('Points finished for this client');
+            }
+        }
+
+        function deleteClient(index) {
+            if (confirm('Are you sure you want to delete this client?')) {
+                clients.splice(index, 1);
+                saveClients();
+            }
+        }
+
+        function editClient(index) {
+            const newName = prompt('Enter new name', clients[index].name);
+            const newPhone = prompt('Enter new phone', clients[index].phone);
+            if (newName && newPhone) {
+                clients[index].name = newName.trim();
+                clients[index].phone = newPhone.trim();
+                saveClients();
+            }
+        }
+
+        function resetPoints(index) {
+            if (confirm('Reset points to 30 for this client?')) {
+                clients[index].points = 30;
+                const startDate = new Date();
+                const expiryDate = new Date();
+                expiryDate.setDate(startDate.getDate() + 30);
+                clients[index].startDate = startDate.toISOString().split('T')[0];
+                clients[index].expiryDate = expiryDate.toISOString().split('T')[0];
+                clients[index].attendance = [];
+                saveClients();
+            }
+        }
+
+        function daysRemaining(expiry) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Start of today
+            const endDate = new Date(expiry);
+            endDate.setHours(23, 59, 59, 999); // End of expiry day
+            const diffTime = endDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return Math.max(diffDays, 0);
+        }
+
+        function renderClients() {
+            const tbody = document.querySelector('#clientTable tbody');
+            tbody.innerHTML = '';
+            const filter = document.getElementById('filterSelect').value;
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            clients.forEach((c, i) => {
+                const active = c.points > 0 && daysRemaining(c.expiryDate) > 0;
+                if (filter === 'active' && !active) return;
+                if (filter === 'expired' && active) return;
+                if (search && !c.name.toLowerCase().includes(search) && !c.phone.includes(search)) return;
+                const row = document.createElement('tr');
+                if (!active) row.classList.add('completed');
+                const today = new Date().toISOString().split('T')[0];
+                const reminder = !c.attendance.includes(today) && active ? '✅ Pending' : '';
+                row.innerHTML = `
+                    <td>${c.name}</td>
+                    <td>${c.phone}</td>
+                    <td>${c.points}</td>
+                    <td>${daysRemaining(c.expiryDate)}</td>
+                    <td>${c.attendance.slice(-10).join(', ')}</td>
+                    <td>
+                        <button onclick="checkIn(${i})">Check In</button>
+                        <button onclick="editClient(${i})">Edit</button>
+                        <button onclick="deleteClient(${i})">Delete</button>
+                        <button onclick="resetPoints(${i})">Reset Points</button>
+                    </td>
+                    <td>${reminder}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function exportCSV() {
+            let csvContent = 'Name,Phone,Points,Days Remaining,Attendance\n';
+            clients.forEach(c => {
+                csvContent += `${c.name},${c.phone},${c.points},${daysRemaining(c.expiryDate)},"${c.attendance.join('; ')}"\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'clients.csv';
+            link.click();
+        }
+
+        renderClients();
+    </script>
+</body>
+</html>
