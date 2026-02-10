@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clients data -Management</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
+    <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* CSS Variables for Themes */
+        :root {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --section-bg: white;
+            --table-header-bg: #ecf0f1;
+            --button-bg: #3498db;
+            --button-hover: #2980b9;
+            --notification-bg: #ffeaa7;
+            --notification-text: #d63031;
+            --highlight-bg: #d4edda; /* Highlight for high points */
+        }
+        body.dark {
+            --bg-color: #2c3e50;
+            --text-color: #ecf0f1;
+            --section-bg: #34495e;
+            --table-header-bg: #2c3e50;
+            --button-bg: #e74c3c;
+            --button-hover: #c0392b;
+            --notification-bg: #e67e22;
+            --notification-text: #ecf0f1;
+            --highlight-bg: #155724; /* Dark mode highlight */
+        }
+        body.rtl {
+            direction: rtl;
+            text-align: right;
+        }
+
+        /* Professional Styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        h2, h3 {
+            color: var(--text-color);
+            text-align: center;
+        }
+        .section {
+            background: var(--section-bg);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: background-color 0.3s;
+        }
+        input, button, select {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: var(--button-bg);
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: var(--button-hover);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: var(--table-header-bg);
+            font-weight: bold;
+        }
+        .highlight {
+            background-color: var(--highlight-bg);
+        }
+        .completed {
+            background-color: #ffeaa7;
+        }
+        .notification {
+            background-color: var(--notification-bg);
+            border: 1px solid var(--notification-text);
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .notification h3 {
+            color: var(--notification-text);
+            margin-top: 0;
+        }
+        .notification table {
+            margin-top: 10px;
+        }
+        canvas {
+            max-width: 100%;
+            height: 300px;
+            margin-top: 20px;
+        }
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            table, th, td { font-size: 12px; padding: 5px; }
+            button { font-size: 12px; padding: 6px; }
+        }
+
+        /* Modal for QR Code */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        body.dark .modal-content {
+            background: #34495e;
+            color: #ecf0f1;
+        }
+
+        /* Main App */
+        #app {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main App -->
+    <div id="app">
+        <h2 id="appTitle"><i class="fas fa-users"></i> Clients data -Management</h2>
+        <button id="themeToggle" onclick="toggleTheme()"><i class="fas fa-moon"></i> Toggle Dark Mode</button>
+        <select id="languageSelect" onchange="setLanguage(this.value)">
+            <option value="en">English</option>
+            <option value="ar">العربية</option>
+            <option value="fr">Français</option>
+        </select>
+
+        <!-- Check-In via QR Section -->
+        <div class="section">
+            <h3><i class="fas fa-qrcode"></i> Check-In via QR</h3>
+            <video id="qrVideo" width="300" height="200"></video>
+            <p id="qrResult"></p>
+        </div>
+
+        <!-- Notifications Section -->
+        <div id="notifications" class="notification" style="display: none;">
+            <h3 id="notificationsTitle"><i class="fas fa-bell"></i> Clients Needing Attention</h3>
+            <table id="notificationTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th id="nameHeader">Name</th>
+                        <th id="statusHeader">Status</th>
+                        <th id="actionsHeader">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button id="showMoreBtn" style="display: none;" onclick="showMoreNotifications()">Show More</button>
+        </div>
+
+        <!-- Add Client Section -->
+        <div class="section">
+            <h3 id="addClientTitle"><i class="fas fa-user-plus"></i> Add New Client</h3>
+            <label for="clientName" id="nameLabel">Client Name:</label>
+            <input type="text" id="clientName" placeholder="Enter client name">
+            <label for="clientPhone" id="phoneLabel">Phone Number:</label>
+            <input type="text" id="clientPhone" placeholder="10-digit phone number">
+            <label for="startDate" id="dateLabel">Start Date (optional):</label>
+            <input type="date" id="startDate">
+            <br><br>
+            <button onclick="addClient()" id="addBtn"><i class="fas fa-plus"></i> Add Client</button>
+            <button onclick="exportCSV()" id="exportCsvBtn"><i class="fas fa-download"></i> Export CSV</button>
+            <button onclick="exportBackup()" id="exportBackupBtn"><i class="fas fa-save"></i> Export Backup</button>
+            <input type="file" id="importBackup" accept=".json" onchange="importBackup()">
+        </div>
+
+        <!-- Filter and Search Section -->
+        <div class="section">
+            <h3 id="filterTitle"><i class="fas fa-search"></i> Filter and Search Clients</h3>
+            <select id="filterSelect" onchange="renderClients()">
+                <option value="all" id="allOption">All Clients</option>
+                <option value="active" id="activeOption">Active Clients</option>
+                <option value="expired" id="expiredOption">Expired Clients</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="Search by ID, name, or phone" onkeyup="renderClients()">
+        </div>
+
+        <!-- Clients Table Section -->
+        <div class="section">
+            <h3 id="clientsTitle"><i class="fas fa-list"></i> Clients List</h3>
+            <table id="clientTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th id="nameTh">Name</th>
+                        <th id="phoneTh">Phone</th>
+                        <th id="pointsTh">Points</th>
+                        <th id="daysTh">Days Remaining</th>
+                        <th id="attendanceTh">Attendance (Last 6)</th>
+                        <th id="actionsTh">Actions</th>
+                        <th id="reminderTh">Reminder</th>
+                        <th>QR Code</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Monthly Report Section -->
+        <div class="section">
+            <h3 id="reportTitle"><i class="fas fa-chart-bar"></i> Monthly Report (Current Year)</h3>
+            <table id="reportTable">
+                <thead>
+                    <tr>
+                        <th id="monthTh">Month</th>
+                        <th id="customersTh">Registered Customers</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <canvas id="reportChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Modal for QR Code -->
+    <div id="qrModal" class="modal">
+        <div class="modal-content">
+            <span onclick="closeModal()" style="cursor:pointer; float:right;">&times;</span>
+            <h3>Client QR Code</h3>
+            <div id="qrCode"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global Variables
+        let clients = [];
+        let chart;
+        let showAllNotifications = false;
+        let currentLanguage = 'en';
+        let scanner;
+
+        // Translations
+        const translations = {
+            en: {
+                appTitle: "Clients data -Management",
+                notificationsTitle: "Clients Needing Attention",
+                nameHeader: "Name",
+                statusHeader: "Status",
+                actionsHeader: "Actions",
+                showMoreBtn: "Show More",
+                addClientTitle: "Add New Client",
+                nameLabel: "Client Name:",
+                phoneLabel: "Phone Number:",
+                dateLabel: "Start Date (optional):",
+                addBtn: "Add Client",
+                exportCsvBtn: "Export CSV",
+                exportBackupBtn: "Export Backup",
+                filterTitle: "Filter and Search Clients",
+                allOption: "All Clients",
+                activeOption: "Active Clients",
+                expiredOption: "Expired Clients",
+                searchPlaceholder: "Search by ID, name, or phone",
+                clientsTitle: "Clients List",
+                nameTh: "Name",
+                phoneTh: "Phone",
+                pointsTh: "Points",
+                daysTh: "Days Remaining",
+                attendanceTh: "Attendance (Last 6)",
+                actionsTh: "Actions",
+                reminderTh: "Reminder",
+                reportTitle: "Monthly Report (Current Year)",
+                monthTh: "Month",
+                customersTh: "Registered Customers",
+                checkInBtn: "Check In",
+                editBtn: "Edit",
+                deleteBtn: "Delete",
+                resetBtn: "Reset",
+                callBtn: "Call",
+                resetPointsBtn: "Reset"
+            },
+            ar: {
+                appTitle: "إدارة بيانات العملاء",
+                notificationsTitle: "العملاء الذين يحتاجون إلى انتباه",
+                nameHeader: "الاسم",
+                statusHeader: "الحالة",
+                actionsHeader: "الإجراءات",
+                showMoreBtn: "عرض المزيد",
+                addClientTitle: "إضافة عميل جديد",
+                nameLabel: "اسم العميل:",
+                phoneLabel: "رقم الهاتف:",
+                dateLabel: "تاريخ البدء (اختياري):",
+                addBtn: "إضافة عميل",
+                exportCsvBtn: "تصدير CSV",
+                exportBackupBtn: "تصدير نسخة احتياطية",
+                filterTitle: "تصفية وبحث العملاء",
+                allOption: "جميع العملاء",
+                activeOption: "العملاء النشطين",
+                expiredOption: "العملاء المنتهي الصلاحية",
+                searchPlaceholder: "البحث بالمعرف، الاسم، أو الهاتف",
+                clientsTitle: "قائمة العملاء",
+                nameTh: "الاسم",
+                phoneTh: "الهاتف",
+                pointsTh: "النقاط",
+                daysTh: "الأيام المتبقية",
+                attendanceTh: "الحضور (آخر 6)",
+                actionsTh: "الإجراءات",
+                reminderTh: "التذكير",
+                reportTitle: "التقرير الشهري (السنة الحالية)",
+                monthTh: "الشهر",
+                customersTh: "العملاء المسجلين",
+                checkInBtn: "تسجيل الحضور",
+                editBtn: "تعديل",
+                deleteBtn: "حذف",
+                resetBtn: "إعادة تعيين",
+                callBtn: "اتصال",
+                resetPointsBtn: "إعادة تعيين النقاط"
+            },
+            fr: {
+                appTitle: "Gestion des Données Clients",
+                notificationsTitle: "Clients Nécessitant une Attention",
+                nameHeader: "Nom",
+                statusHeader: "Statut",
+                actionsHeader: "Actions",
+                showMoreBtn: "Afficher Plus",
+                addClientTitle: "Ajouter un Nouveau Client",
+                nameLabel: "Nom du Client:",
+                phoneLabel: "Numéro de Téléphone:",
+                dateLabel: "Date de Début (optionnel):",
+                addBtn: "Ajouter Client",
+                exportCsvBtn: "Exporter CSV",
+                exportBackupBtn: "Exporter Sauvegarde",
+                filterTitle: "Filtrer et Rechercher Clients",
+                allOption: "Tous les Clients",
+                activeOption: "Clients Actifs",
+                expiredOption: "Clients Expirés",
+                searchPlaceholder: "Rechercher par ID, nom, ou téléphone",
+                clientsTitle: "Liste des Clients",
+                nameTh: "Nom",
+                phoneTh: "Téléphone",
+                pointsTh: "Points",
+                daysTh: "Jours Restants",
+                attendanceTh: "Présence (Derniers 6)",
+                actionsTh: "Actions",
+                reminderTh: "Rappel",
+                reportTitle: "Rapport Mensuel (Année Actuelle)",
+                monthTh: "Mois",
+                customersTh: "Clients Enregistrés",
+                checkInBtn: "Enregistrer Présence",
+                editBtn: "Modifier",
+                deleteBtn: "Supprimer",
+                resetBtn: "Réinitialiser",
+                callBtn: "Appeler",
+                resetPointsBtn: "Réinitialiser Points"
+            }
+        };
+
+        // Load language from localStorage
+        const savedLanguage = localStorage.getItem('language') || 'en';
+        setLanguage(savedLanguage);
+
+        // Load theme from localStorage
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark');
+        }
+
+        // Load data from localStorage on startup
+        try {
+            clients = JSON.parse(localStorage.getItem('clients')) || [];
+        } catch (e) {
+            alert('Failed to load data. Starting fresh.');
+        }
+
+        // Auto Backup Daily
+        function autoBackup() {
+            const today = new Date().toDateString();
+            const lastBackup = localStorage.getItem('lastBackup');
+            if (lastBackup !== today) {
+                localStorage.setItem('clientsBackup', JSON.stringify(clients));
+                localStorage.setItem('lastBackup', today);
+                console.log('Daily backup completed.');
+            }
+        }
+        setInterval(autoBackup, 24 * 60 * 60 * 1000); // Check every 24 hours
+
+        // Save data to localStorage on unload
+        window.addEventListener('beforeunload', () => {
+            localStorage.setItem('clients', JSON.stringify(clients));
+        });
+
+        // Save data to localStorage and refresh UI
+        function saveClients() {
+            try {
+                localStorage.setItem('clients', JSON.stringify(clients));
+            } catch (e) {
+                alert('Failed to save data. Check browser storage settings.');
+            }
+            renderClients();
+            renderReport();
+            renderNotifications();
+        }
+
+        // Toggle Dark Mode
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            const theme = document.body.classList.contains('dark') ? 'dark' : 'light';
+            localStorage.setItem('theme', theme);
+        }
+
+        // Set Language
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            localStorage.setItem('language', lang);
+            document.getElementById('languageSelect').value = lang;
+            document.body.classList.toggle('rtl', lang === 'ar');
+            const t = translations[lang];
+            document.getElementById('appTitle').textContent = t.appTitle;
+            document.getElementById('notificationsTitle').textContent = t.notificationsTitle;
+            document.getElementById('nameHeader').textContent = t
